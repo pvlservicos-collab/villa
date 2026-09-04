@@ -79,14 +79,19 @@ Registro único (`id = 1`) com `nome`, `cargo`, `whatsapp`, `foto_url`,
 
 ## Deploy na Vercel
 
-1. Importe o repositório. Não há build step — os estáticos saem da raiz e o que
-   estiver em `api/` vira serverless function.
-2. Em **Settings › Environment Variables**, cadastre `DATABASE_URL` e `ADMIN_TOKEN`
-   nos três ambientes (Production, Preview, Development).
-3. Para o upload de fotos, crie um store em **Storage › Blob** e ligue ao projeto —
-   a `BLOB_READ_WRITE_TOKEN` entra sozinha. Sem isso o painel ainda aceita URLs
-   coladas à mão no campo de imagens.
-4. Redeploy.
+Em produção: **https://villa-ten-lake.vercel.app** (projeto `villa`).
+
+Não há build step — os estáticos saem da raiz e o que estiver em `api/` vira
+serverless function. `DATABASE_URL`, `ADMIN_TOKEN` e `BLOB_READ_WRITE_TOKEN` já
+estão cadastradas em Production e Development; Preview ainda não tem `ADMIN_TOKEN`
+(a CLI exige escolher a branch num prompt interativo), então deploys de branch não
+abrem o painel até cadastrar pelo dashboard.
+
+Variável nova só vale no próximo deploy: `vercel redeploy <url-do-deploy>`.
+
+> `vercel env pull` traz `ADMIN_TOKEN=""` de Production — a Vercel não devolve o
+> valor de variáveis sensíveis. Preencha à mão no `.env.local` depois de puxar,
+> senão o painel local para de abrir.
 
 ## API
 
