@@ -1,26 +1,10 @@
-// scratch/seed_teste.js
-// Cadastra imóveis de teste cobrindo todos os subtipos e finalidades do painel.
-// Uso:  node scratch/seed_teste.js
-//       node scratch/seed_teste.js --dry     (só imprime o payload, não envia)
+// scripts/seed.js — cadastra imoveis de teste no Neon.
+// Uso:  node scripts/seed.js          (pula os que ja existem, por slug)
+//       node scripts/seed.js --reset  (apaga tudo antes de inserir)
 
-const fs = require('fs');
-const path = require('path');
+const { sql } = require('./db');
 
-// ── Credenciais lidas de js/supabase-config.js ───────────────
-const configPath = path.join(__dirname, '..', 'js', 'supabase-config.js');
-const config = fs.readFileSync(configPath, 'utf8');
-const supabaseUrl = config.match(/supabaseUrl\s*=\s*'([^']+)'/)[1];
-const supabaseKey = config.match(/supabaseKey\s*=\s*'([^']+)'/)[1];
-const endpoint = `${supabaseUrl}/rest/v1/imoveis`;
-
-const headers = {
-    apikey: supabaseKey,
-    Authorization: `Bearer ${supabaseKey}`,
-    'Content-Type': 'application/json',
-    Prefer: 'return=representation'
-};
-
-// mesma regra do js/admin.js
+// mesma regra de slug do js/admin.js
 function gerarSlug(texto) {
     return texto.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -54,7 +38,6 @@ const FOTOS = {
     ]
 };
 
-// ── Imóveis de teste ─────────────────────────────────────────
 const BASE = [
     {
         nome: 'Mansão Ponta Negra - Vista Rio Negro',
@@ -170,8 +153,6 @@ const BASE = [
     }
 ];
 
-const agora = new Date().toISOString();
-
 const imoveis = BASE.map(i => ({
     nome: i.nome,
     localizacao: i.localizacao,
@@ -189,57 +170,46 @@ const imoveis = BASE.map(i => ({
     },
     caracteristicas: i.caracteristicas,
     imagens: FOTOS[i.subtipo],
-    ativo: true,
-    slug: gerarSlug(i.nome),
-    datacriacao: agora,
-    dataatualizacao: agora
+    slug: gerarSlug(i.nome)
 }));
 
-// ── Garante slug único contra o que já existe no banco ───────
-async function resolverSlugs() {
-    const r = await fetch(`${endpoint}?select=slug`, { headers });
-    if (!r.ok) throw new Error(`Falha ao ler slugs existentes: ${r.status} ${await r.text()}`);
-    const usados = new Set((await r.json()).map(x => x.slug));
+(async () => {
+    if (process.argv.includes('--reset')) {
+        await sql`TRUNCATE imoveis RESTART IDENTITY`;
+        console.log('Tabela imoveis zerada.\n');
+    }
+
+    let criados = 0, pulados = 0;
 
     for (const im of imoveis) {
-        if (!usados.has(im.slug)) { usados.add(im.slug); continue; }
-        let n = 2;
-        while (usados.has(`${im.slug}-${n}`)) n++;
-        im.slug = `${im.slug}-${n}`;
-        usados.add(im.slug);
-    }
-}
+        const linhas = await sql`
+            INSERT INTO imoveis
+                (nome, localizacao, valor, tipo, descricao, detalhes,
+                 caracteristicas, imagens, ativo, slug)
+            VALUES
+                (${im.nome}, ${im.localizacao}, ${im.valor}, ${im.tipo}, ${im.descricao},
+                 ${JSON.stringify(im.detalhes)}::jsonb,
+                 ${JSON.stringify(im.caracteristicas)}::jsonb,
+                 ${JSON.stringify(im.imagens)}::jsonb,
+                 TRUE, ${im.slug})
+            ON CONFLICT (slug) DO NOTHING
+            RETURNING id, nome, tipo, detalhes
+        `;
 
-async function seed() {
-    if (process.argv.includes('--dry')) {
-        console.log(JSON.stringify(imoveis, null, 2));
-        console.log(`\n(dry-run) ${imoveis.length} imóveis prontos para envio.`);
-        return;
-    }
+        if (linhas.length === 0) {
+            pulados++;
+            console.log(`   ja existe  ${im.slug}`);
+            continue;
+        }
 
-    console.log(`Enviando ${imoveis.length} imóveis de teste para ${supabaseUrl} ...`);
-    await resolverSlugs();
-
-    const res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(imoveis)
-    });
-
-    if (!res.ok) {
-        console.error(`Erro ${res.status}:`, await res.text());
-        process.exit(1);
+        criados++;
+        const r = linhas[0];
+        console.log(`   #${r.id}  ${r.nome}  [${r.detalhes.subtipo}/${r.tipo} - ${r.detalhes.negocio}]`);
     }
 
-    const criados = await res.json();
-    console.log(`${criados.length} imóveis cadastrados:`);
-    criados.forEach(im => {
-        const d = im.detalhes || {};
-        console.log(`   #${im.id}  ${im.nome}  [${d.subtipo}/${im.tipo} - ${d.negocio}]  -> imovel.html?id=${im.id}`);
-    });
-}
-
-seed().catch(e => {
-    console.error('Falha ao rodar seed:', e.message || e);
+    const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM imoveis`;
+    console.log(`\n${criados} criado(s), ${pulados} pulado(s). Total na tabela: ${count}.`);
+})().catch(e => {
+    console.error('Falhou:', e.message || e);
     process.exit(1);
 });

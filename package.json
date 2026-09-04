@@ -1,0 +1,29 @@
+{
+  "name": "villaserena",
+  "version": "1.0.0",
+  "description": "Site institucional da Villa Serena - imobiliaria de alto padrao em Manaus.",
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "db:setup": "node scripts/setup-db.js",
+    "db:seed": "node scripts/seed.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pvlservicos-collab/villa.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/pvlservicos-collab/villa/issues"
+  },
+  "homepage": "https://github.com/pvlservicos-collab/villa#readme",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "^2.8.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
